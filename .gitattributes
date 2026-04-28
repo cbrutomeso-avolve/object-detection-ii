@@ -1,0 +1,39 @@
+# =============================================================================
+# Repo-wide line-ending policy.
+# Wins over each contributor's local `core.autocrlf` setting, so the repo
+# stays LF-everywhere regardless of who clones it (Windows / Linux / macOS).
+# =============================================================================
+
+# All text files: auto-detect, normalize to LF in working copy and repo blobs.
+* text=auto eol=lf
+
+# =============================================================================
+# Binaries — git must NOT touch line endings here, or files get corrupted.
+# =============================================================================
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.bmp  binary
+*.tiff binary
+*.pdf  binary
+*.zip  binary
+*.tar  binary
+*.gz   binary
+*.7z   binary
+*.woff binary
+*.woff2 binary
+
+# =============================================================================
+# Shell scripts: ALWAYS LF, even on Windows. CRLF in a .sh file causes
+# bash to fail with cryptic errors like "bad interpreter: No such file".
+# =============================================================================
+*.sh   text eol=lf
+
+# =============================================================================
+# Jupyter notebooks: text but typically large; keep them LF and let git
+# diff them as text (a real notebook diff tool is a separate concern).
+# =============================================================================
+*.ipynb text eol=lf

@@ -1,0 +1,20 @@
+{
+    "hooks": {
+      "PreToolUse": [
+        {
+          "matcher": "Read|Grep",
+          "hooks": [{
+            "type": "command",
+            "command": "node $PWD/hooks/block-sensitive-read.js"
+          }]
+        },
+        {
+          "matcher": "Bash",
+          "hooks": [{
+            "type": "command",
+            "command": "node $PWD/hooks/block-destruction.js"
+          }]
+        }
+      ]
+    }
+  }

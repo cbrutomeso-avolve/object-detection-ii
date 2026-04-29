@@ -9,40 +9,18 @@ feature may have multiple visual formats.
 - Phase 1 (now): sprinkler only.
 - Future: additional feature classes (fire alarm, smoke detector, etc.). The codebase, schemas, API, and UI MUST be built multi-class from day one. Adding a new class should be a data-only change: add the category to the COCO file + provide reference crops. No code changes.
 
-## Object variability for Phase 1
-
-Phase 1 is intentionally conservative. The detector should first prove the
-basic reference-matching loop works before chasing hard visual robustness.
-
-In scope:
-- Exact or near-exact matches of the same visual symbol.
-- Rotation of the same foreground shape.
-- Same foreground shape with different color.
-- Same foreground shape at a smaller scale.
-- Multiple visual formats per feature class, represented by multiple
-  reference crops.
-
-Out of scope for the first PoC version:
-- Partial occlusion (something on top of the object).
-- Smudges, stains, partial overprinting, or heavy background noise.
-
-Reference matching rule: match the **foreground symbol**, not the full crop
-rectangle. Build a foreground mask from each reference crop (for example,
-non-white / non-paper pixels, or alpha if present). During matching, apply that
-same mask to each candidate window and compute similarity only over the masked
-foreground pixels. The candidate background outside the mask must not affect
-the score. If a sprinkler crop is a colored circle on a white background, the
-detector should compare the circle against the candidate region, not the white
-rectangle around it. COCO GT remains bbox-only; this mask is detector logic,
-not annotation schema.
+## Object variability the detector MUST tolerate
+- Arbitrary rotation
+- Partial occlusion (something on top of the object)
+- Smudges, stains, or partial overprinting
+- Different colors than the reference
+- Different scales but same shape
+- Multiple visual formats per feature class
 
 ## Hard constraints
 - Open-source only. No paid APIs. No API keys. Must run offline.
 - No model training. PoC scope.
-- Performance matters even in the PoC, but quality metrics come first. On CPU,
-  target **MAX latency <= 10 seconds/page**; 5-10 seconds/page is a reasonable
-  exploratory range. Do not trade away precision/recall to hit the latency
-  target unless the user explicitly accepts that quality loss.
+- Performance matters even in the PoC: on CPU, target **MAX latency <= 10 seconds per page**. A reasonable exploratory range is 5-10 seconds/page, but the PoC target is <=10s MAX.
 
 ## Stack (locked)
 - Python 3.11

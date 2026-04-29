@@ -55,14 +55,22 @@ ambiguous intent. Be specific so the main thread doesn't rediscover.
   fire_alarm or other classes as a dataset-only change. Categories
   must come from the COCO file or the API request, never from string
   literals in code.
-- OpenCV detector correctness: rotation set has no duplicate at 360 == 0,
-  NMS IoU is on the right axis, scale list includes 1.0, multi-reference
-  candidates are unioned BEFORE NMS.
+- Detector correctness: NMS IoU is on the right axis, scale list
+  includes 1.0, multi-reference candidates are unioned BEFORE NMS, and
+  reference crops are matched by foreground symbol pixels rather than by
+  the full white-background rectangle. Flag template matching that treats
+  crop background as object signal.
 - Performance: detector runs report wall-clock latency per page in
   `metrics/metrics_<run_id>.json` and `.md`, including average, median,
-  P95, max, and per-page values. For this CPU-only PoC, flag
-  missing latency data or MAX > 10 seconds/page unless the branch clearly
-  documents why the user accepted the miss.
+  P95, max, and per-page values. For this CPU-only PoC, latency target is
+  MAX <= 10 seconds/page, but quality metrics have priority. Flag missing
+  latency data, MAX > 10 seconds/page, or optimizations that improve
+  latency by lowering precision/recall without explicit user acceptance.
+- Phase 1 scope: rotation is required for the same foreground shape. Do not
+  require occlusion, smudges, overprinting, or heavy background-noise
+  robustness in the first PoC version. The first version should focus on
+  exact/near-exact foreground shape matches, same shape with different color,
+  same shape at smaller scale, and rotated instances of that same shape.
 - Feature planning: every feature or phase branch must include an
   approved plan at `plans/<feature>.md` before implementation. Flag
   branches that add implementation without the corresponding saved plan,

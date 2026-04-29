@@ -32,4 +32,7 @@ Each plan should include:
 - Risks: known failure modes, uncertainty, and what would trigger a rethink.
 
 For detector work, the evaluation section must mention both accuracy metrics
-and latency. The CPU-only PoC target is **MAX latency <=10 seconds/page**.
+and latency. Quality metrics have priority; latency is a secondary target.
+The CPU-only PoC target is **MAX latency <=10 seconds/page**, but changes made
+only for speed must not reduce precision/recall unless the user explicitly
+accepts that trade-off.

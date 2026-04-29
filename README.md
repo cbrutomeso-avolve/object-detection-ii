@@ -30,7 +30,7 @@ Phase 1 tackles **sprinkler detection** in fire sprinkler plans, given:
 - A plan image (PNG)
 - One or more reference crops of a sprinkler
 
-The detector should find every sprinkler in the plan, tolerating arbitrary rotation, partial occlusion, smudges, color/scale variation, and multiple visual formats per class.
+The first PoC version is intentionally modest: find exact or near-exact sprinkler symbols, including rotated instances of the same foreground shape and the same shape with different color or smaller scale. It should build a foreground mask from each reference crop and apply it to candidate windows, matching the symbol itself rather than the white rectangle around the crop. Harder cases like occlusion, smudges, overprinting, and heavy background noise are deliberately out of scope for the first pass.
 
 Hard constraints: **open-source only, runs offline, no model training, no paid APIs**.
 
@@ -91,7 +91,7 @@ When you tell the agent to start Phase 1 (e.g. *"start the poc-notebook phase"*)
 3. Create `.venv/`, write `requirements.txt` with pinned versions, install dependencies.
 4. Save the approved plan to `plans/poc-notebook.md`.
 5. Scaffold the notebook in `notebook/`.
-6. Evaluate accuracy and latency, targeting **MAX latency <=10s/page** for the CPU-only OpenCV PoC.
+6. Evaluate accuracy and latency. Quality metrics have priority; latency is a secondary target of **MAX <=10s/page** for the CPU-only OpenCV PoC.
 7. End the branch with a `code-reviewer` subagent pass before you decide on merge.
 
 You do **not** run `python -m venv` by hand. That is exactly the point of this repo — the agent reads the spec and executes against it.

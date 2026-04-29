@@ -129,10 +129,9 @@ Also report:
 - Latency per page, measured wall-clock around the full detector call for
   each page (load/preprocess, feature matching, candidate union, and NMS).
   Report average, median, P95, max, and per-page values. For this CPU-only
-  PoC, latency is an optimization target: **MAX <= 10 seconds/page**.
-  A 5-10 seconds/page exploratory range is reasonable. Do NOT reduce
-  precision/recall just to hit latency unless the user explicitly accepts
-  that quality trade-off.
+  OpenCV PoC, the target is **MAX latency <= 10 seconds/page**. A 5-10
+  seconds/page exploratory range is reasonable, but <=10s MAX is the PoC
+  bar.
 
 ## Output format (stdout + disk)
 
@@ -149,7 +148,7 @@ Also report:
 Followed by:
 - Overall mean IoU (true positives only).
 - Latency summary: average, median, P95, max, and whether MAX meets the
-  `<=10s/page` PoC target. Accuracy metrics have priority over latency.
+  `<=10s/page` PoC target.
 - Miss list with `image_id`, `gt_id`, `category_id`, and `bbox`. No cause
   attribution in the metrics output.
 
@@ -237,16 +236,13 @@ counts) is exactly what informs the next iteration. Report the accuracy
 miss and propose at most 2 concrete changes (e.g. "tighten NMS to 0.4",
 "add 15-degree rotation step"). The user decides.
 
-If MAX latency > 10 seconds/page, treat the run as missing the latency
-target, but remember latency is secondary to quality. Do NOT silently
-optimize or change detector parameters. Report the latency miss and propose
-at most 2 concrete changes that should not harm precision/recall. The user
-decides.
+If MAX latency > 10 seconds/page, also treat the run as missing the PoC
+target. Do NOT silently optimize or change detector parameters. Report
+the latency miss and propose at most 2 concrete changes. The user decides.
 
 If accuracy and latency both miss their targets, propose at most 2 total
-changes, not 2 per metric. Prioritize the accuracy fix first; latency
-improvements must not degrade the quality metrics unless the user approves
-that trade-off.
+changes, not 2 per metric. Prioritize changes that improve recall without
+exploding latency.
 
 ## Multi-reference handling
 
@@ -256,28 +252,6 @@ reference and the candidate boxes are unioned BEFORE NMS, then NMS is
 applied globally for that class. For metrics, treat them as a single
 class — the GT does not distinguish sub-formats; they all share one
 `category_id`.
-
-## Reference foreground handling
-
-Do not match the full rectangular reference crop as if every pixel were part
-of the object. Many crops contain the actual symbol on a plain white
-background. If that white background is included as signal, a valid object on
-a stained or differently colored plan background can be missed for the wrong
-reason.
-
-For Phase 1, build a foreground mask from each reference crop and apply that
-same mask to every candidate window during matching. Compute similarity only
-over masked foreground pixels. The candidate background outside the mask must
-not affect the score. A practical starting rule is: foreground = reference
-pixels that are not close to white / paper background (or alpha if present).
-Keep this data-driven per reference crop; do not hardcode "sprinkler" logic.
-COCO GT remains bbox-only; the mask is detector logic, not annotation schema.
-
-Phase 1 scope is exact or near-exact foreground-shape matching, including
-rotation of the same foreground shape, same shape with different color, and
-same shape at smaller scale. Occlusion, smudges, overprinting, and heavy
-background noise are out of scope for the first PoC version unless the user
-explicitly expands scope.
 
 ## Tooling
 

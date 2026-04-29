@@ -58,6 +58,16 @@ ambiguous intent. Be specific so the main thread doesn't rediscover.
 - OpenCV detector correctness: rotation set has no duplicate at 360 == 0,
   NMS IoU is on the right axis, scale list includes 1.0, multi-reference
   candidates are unioned BEFORE NMS.
+- Performance: detector runs report wall-clock latency per page in
+  `metrics/metrics_<run_id>.json` and `.md`, including average, median,
+  P95, max, and per-page values. For this CPU-only PoC, flag
+  missing latency data or MAX > 10 seconds/page unless the branch clearly
+  documents why the user accepted the miss.
+- Feature planning: every feature or phase branch must include an
+  approved plan at `plans/<feature>.md` before implementation. Flag
+  branches that add implementation without the corresponding saved plan,
+  or plans that omit goal, scope, approach, evaluation/test plan, and
+  known risks.
 - API: request schema actually expresses "one feature class, many
   references" cleanly. Class is a parameter.
 - UI: state for multiple references doesn't leak between detection

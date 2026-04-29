@@ -16,8 +16,9 @@ It uses a real but small computer-vision problem — *find every sprinkler in a 
 | **Hooks** that block destructive shell commands and reads on sensitive paths | [`.claude/hooks/`](./.claude/hooks/) + [`.claude/settings.example.json`](./.claude/settings.example.json) |
 | **Bootstrap script** so per-machine paths never pollute the repo | [`scripts/init-claude.js`](./scripts/init-claude.js) |
 | **Phase-based branching** with Plan Mode → Code Mode discipline | [`CLAUDE.md`](./CLAUDE.md) → "Workflow rules" |
+| **Saved feature plans** so the reasoning that led to implementation is reviewable | [`plans/`](./plans/) |
 | **Cross-platform** setup (Windows + Linux + macOS) baked in from day one | [`CLAUDE.md`](./CLAUDE.md) → "Environment" |
-| **Reproducible metrics** separated from subjective AI commentary | [`SKILL.md`](./.claude/skills/object-detection-eval/SKILL.md) → "Output format" + "Miss analysis" |
+| **Reproducible accuracy + latency metrics** separated from subjective AI commentary | [`SKILL.md`](./.claude/skills/object-detection-eval/SKILL.md) → "Output format" + "Miss analysis" |
 | **Multi-class from day one** — adding a new feature class is a data-only change | [`CLAUDE.md`](./CLAUDE.md) → "Scope" + "Conventions" |
 
 ---
@@ -88,8 +89,10 @@ When you tell the agent to start Phase 1 (e.g. *"start the poc-notebook phase"*)
 1. Create the `feat/poc-notebook` branch from `main`.
 2. Enter Plan Mode (Explore) and propose an approach before writing code.
 3. Create `.venv/`, write `requirements.txt` with pinned versions, install dependencies.
-4. Scaffold the notebook in `notebook/`.
-5. End the branch with a `code-reviewer` subagent pass before you decide on merge.
+4. Save the approved plan to `plans/poc-notebook.md`.
+5. Scaffold the notebook in `notebook/`.
+6. Evaluate accuracy and latency, targeting **MAX latency <=10s/page** for the CPU-only OpenCV PoC.
+7. End the branch with a `code-reviewer` subagent pass before you decide on merge.
 
 You do **not** run `python -m venv` by hand. That is exactly the point of this repo — the agent reads the spec and executes against it.
 
@@ -123,6 +126,7 @@ If you want to poke around outside Claude Code (run a Jupyter cell ad-hoc, debug
 │       └── code-reviewer.md
 ├── scripts/
 │   └── init-claude.js              # bootstrap settings.local.json from example
+├── plans/                          # saved Claude Code plans, one per feature/phase
 ├── dataset/
 │   ├── annotations/
 │   │   └── annotations.json        # COCO ground truth
@@ -135,7 +139,7 @@ If you want to poke around outside Claude Code (run a Jupyter cell ad-hoc, debug
 ├── api/                            # FastAPI service       (Phase 2)
 ├── ui/                             # Next.js + Tailwind    (Phase 3)
 ├── outputs/                        # detector predictions, keyed by run_id
-└── metrics/                        # evaluation results,   keyed by run_id
+└── metrics/                        # accuracy + latency results, keyed by run_id
 ```
 
 ---
@@ -143,10 +147,11 @@ If you want to poke around outside Claude Code (run a Jupyter cell ad-hoc, debug
 ## Suggested reading order if you are studying this
 
 1. [`CLAUDE.md`](./CLAUDE.md) — the project contract. Notice how it is opinionated, decisive, and short.
-2. [`.claude/skills/object-detection-eval/SKILL.md`](./.claude/skills/object-detection-eval/SKILL.md) — how a domain skill is shaped: triggers, schema, decision rules, separation of mechanical vs interpretive output.
-3. [`.claude/agents/code-reviewer.md`](./.claude/agents/code-reviewer.md) — how a subagent persona is shaped: scope, output format, review focus.
-4. [`.claude/settings.example.json`](./.claude/settings.example.json) + [`.claude/hooks/`](./.claude/hooks/) — how guardrails are wired without trusting the agent.
-5. [`scripts/init-claude.js`](./scripts/init-claude.js) — how per-machine scaffolding is generated without polluting the repo with absolute paths.
+2. [`plans/`](./plans/) — how Plan Mode becomes a committed artifact instead of disappearing into chat history.
+3. [`.claude/skills/object-detection-eval/SKILL.md`](./.claude/skills/object-detection-eval/SKILL.md) — how a domain skill is shaped: triggers, schema, decision rules, latency targets, and separation of mechanical vs interpretive output.
+4. [`.claude/agents/code-reviewer.md`](./.claude/agents/code-reviewer.md) — how a subagent persona is shaped: scope, output format, review focus.
+5. [`.claude/settings.example.json`](./.claude/settings.example.json) + [`.claude/hooks/`](./.claude/hooks/) — how guardrails are wired without trusting the agent.
+6. [`scripts/init-claude.js`](./scripts/init-claude.js) — how per-machine scaffolding is generated without polluting the repo with absolute paths.
 
 ---
 

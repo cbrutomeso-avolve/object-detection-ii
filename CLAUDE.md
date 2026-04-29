@@ -20,6 +20,7 @@ feature may have multiple visual formats.
 ## Hard constraints
 - Open-source only. No paid APIs. No API keys. Must run offline.
 - No model training. PoC scope.
+- Performance matters even in the PoC: on CPU, target **MAX latency <= 10 seconds per page**. A reasonable exploratory range is 5-10 seconds/page, but the PoC target is <=10s MAX.
 
 ## Stack (locked)
 - Python 3.11
@@ -83,8 +84,11 @@ Conventions:
     `git checkout main && git pull && git checkout -b feat/<phase>`
   - PowerShell 5.1 (default on Windows 10/11):
     `git checkout main; git pull; git checkout -b feat/<phase>`
-- Every phase starts in Plan Mode (Explore) before any code is written.
-  The plan does not need its own branch.
+- Every feature or phase starts in Plan Mode (Explore) before any code is
+  written. Claude Code MUST save the approved plan to `plans/<feature>.md`
+  before implementation starts. The plan file is part of the branch and
+  should explain the goal, scope, constraints, approach, test/evaluation
+  plan, and known risks.
 - Each branch ends with a code-reviewer subagent pass (local quality
   review, see `.claude/agents/code-reviewer.md`) before the user
   decides to merge.
@@ -92,7 +96,7 @@ Conventions:
 ## Conventions
 - Type hints everywhere. ruff + black. pytest.
 - Predictions follow the COCO results schema documented in the
-  poc-runner skill.
+  `object-detection-eval` skill.
 - NEVER hardcode "sprinkler" in detection logic. The category is
   data-driven: read from the COCO file or from the API request.
   This is what makes future classes a data-only change.

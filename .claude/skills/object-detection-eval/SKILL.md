@@ -5,8 +5,8 @@ description: Use when running or evaluating an object-detection PoC
   the user asks to "evaluate the detector", "compute precision/recall",
   "score predictions against ground truth", or sets up a detection
   experiment. Standardizes the prediction schema and the metric
-  computation (precision, recall, F1, mean IoU) at IoU>=0.5, reported
-  both micro-averaged and macro-averaged across feature classes.
+  computation (precision, recall, F1, mean IoU, latency) at IoU>=0.5,
+  reported both micro-averaged and macro-averaged across feature classes.
 allowed-tools: Read, Write, Edit, Bash
 ---
 
@@ -126,6 +126,12 @@ Also report:
 - Miss list: each FN with `image_id`, `gt_id`, `category_id`, and the
   GT `bbox`. The list is mechanical — no cause attribution. See
   "Miss analysis (separate, interpretive)" below.
+- Latency per page, measured wall-clock around the full detector call for
+  each page (load/preprocess, feature matching, candidate union, and NMS).
+  Report average, median, P95, max, and per-page values. For this CPU-only
+  OpenCV PoC, the target is **MAX latency <= 10 seconds/page**. A 5-10
+  seconds/page exploratory range is reasonable, but <=10s MAX is the PoC
+  bar.
 
 ## Output format (stdout + disk)
 
@@ -141,7 +147,10 @@ Also report:
 
 Followed by:
 - Overall mean IoU (true positives only).
-- Miss list grouped by hypothesized cause.
+- Latency summary: average, median, P95, max, and whether MAX meets the
+  `<=10s/page` PoC target.
+- Miss list with `image_id`, `gt_id`, `category_id`, and `bbox`. No cause
+  attribution in the metrics output.
 
 The class rows are generated dynamically from the COCO `categories`
 list. Never hardcode class names in the table.
@@ -160,6 +169,17 @@ files per run, both keyed by the same `run_id` as the predictions:
     "iou_threshold": 0.5,
     "ground_truth": "dataset/annotations/annotations.json",
     "predictions": "outputs/predictions_<run_id>.json",
+    "latency": {
+      "target_max_seconds_per_page": 10.0,
+      "meets_target": true,
+      "avg_seconds_per_page": 0.0,
+      "median_seconds_per_page": 0.0,
+      "p95_seconds_per_page": 0.0,
+      "max_seconds_per_page": 0.0,
+      "per_page": [
+        { "image_id": 0, "file_name": "plan_001.png", "seconds": 0.0 }
+      ]
+    },
     "per_class": {
       "<class_name>": {
         "category_id": 1,
@@ -178,8 +198,8 @@ files per run, both keyed by the same `run_id` as the predictions:
   ```
 
 - `metrics/metrics_<run_id>.md` — the same markdown table printed to
-  stdout, plus the overall mean IoU and the miss list. Human-readable
-  artifact for PRs and the code-reviewer pass.
+  stdout, plus the overall mean IoU, latency summary, and miss list.
+  Human-readable artifact for PRs and the code-reviewer pass.
 
 Rules:
 - Never overwrite an existing `run_id`. If it exists, fail loudly — the
@@ -212,9 +232,17 @@ analysis is commentary.
 If micro precision < 0.7 OR micro recall < 0.8, do NOT silently retune
 parameters. Still write `metrics/metrics_<run_id>.json` and `.md` —
 a bad run is data too, and the failure pattern (which class, which
-counts) is exactly what informs the next iteration. Then propose at
-most 2 concrete changes (e.g. "tighten NMS to 0.4", "add 15-degree
-rotation step") and stop. The user decides.
+counts) is exactly what informs the next iteration. Report the accuracy
+miss and propose at most 2 concrete changes (e.g. "tighten NMS to 0.4",
+"add 15-degree rotation step"). The user decides.
+
+If MAX latency > 10 seconds/page, also treat the run as missing the PoC
+target. Do NOT silently optimize or change detector parameters. Report
+the latency miss and propose at most 2 concrete changes. The user decides.
+
+If accuracy and latency both miss their targets, propose at most 2 total
+changes, not 2 per metric. Prioritize changes that improve recall without
+exploding latency.
 
 ## Multi-reference handling
 

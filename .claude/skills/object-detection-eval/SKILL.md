@@ -5,21 +5,22 @@ description: Use when running or evaluating an object-detection PoC
   the user asks to "evaluate the detector", "compute precision/recall",
   "score predictions against ground truth", or sets up a detection
   experiment. Standardizes the prediction schema and the metric
-  computation (precision, recall, F1, mean IoU, latency) at IoU>=0.5,
-  reported both micro-averaged and macro-averaged across feature classes.
+  computation (precision, recall, F1, mean IoU, latency), reported both
+  micro-averaged and macro-averaged across feature classes.
 allowed-tools: Read, Write, Edit, Bash
 ---
 
 ## Scope
 
-Phase 1 of this project evaluates a single class (sprinkler), but this
-skill is class-agnostic and works for any number of categories declared
-in the COCO file. Never hardcode a category name in metric code.
+Class-agnostic. Works for any number of categories declared in the COCO
+file. Never hardcode a category name in metric code; iterate over
+`coco.loadCats(coco.getCatIds())` and key per-class results by
+`category_id`.
 
-## Ground truth: COCO format (input)
+## Ground truth: COCO format
 
-The GT lives at `dataset/annotations/annotations.json` and follows
-the COCO detection schema:
+Lives at `dataset/annotations/annotations.json` with the COCO detection
+schema:
 
 ```json
 {
@@ -27,7 +28,7 @@ the COCO detection schema:
     { "id": 1, "file_name": "plan_001.png", "width": 4096, "height": 2048 }
   ],
   "categories": [
-    { "id": 1, "name": "sprinkler" }
+    { "id": 1, "name": "<class_name>" }
   ],
   "annotations": [
     {
@@ -42,131 +43,118 @@ the COCO detection schema:
 }
 ```
 
-When more classes are added later, `categories` and `annotations` grow.
-Nothing else changes — not the schema, not the metric code, not this
-skill.
+Adding classes only grows `categories` and `annotations` — schema, metric
+code, and this skill stay unchanged.
 
-Notes that bite if forgotten:
-- `bbox` is `[x, y, w, h]`, NOT `[x1, y1, x2, y2]`.
+Conventions that bite if forgotten:
+- `bbox` is `[x, y, w, h]`, not `[x1, y1, x2, y2]`.
 - `category_id` references `categories[].id`, not the index.
-- `image_id` references `images[].id`, not the file_name.
-- A prediction's category must match the GT category by `category_id`.
-  Resolve names to IDs once at load time; never compare by string in
-  the matching loop.
+- `image_id` references `images[].id`, not the file name.
+- A prediction matches a GT only when their `category_id` is equal.
+  Resolve names to IDs once at load time; never compare by string in the
+  matching loop.
 
-## Predictions: COCO results format (output)
+## Predictions: COCO results format
 
-The detector dumps `outputs/predictions_<run_id>.json` in COCO results
-format (the format `pycocotools` expects):
+The detector writes `outputs/predictions_<run_id>.json` as a flat list
+(the format `pycocotools` expects):
 
 ```json
 [
-  {
-    "image_id": 1,
-    "category_id": 1,
-    "bbox": [x, y, w, h],
-    "score": 0.87
-  }
+  { "image_id": 1, "category_id": 1, "bbox": [x, y, w, h], "score": 0.87 }
 ]
 ```
 
-Flat list, not the nested COCO dict. One entry per detection.
+One entry per detection. Predictions and the matching metrics file share
+the same `run_id`, which is `<YYYY-MM-DD>_<HHMM>_<short-tag>` (e.g.
+`2026-04-30_1456_baseline`). This keeps every metric file traceable to
+the exact predictions it scored, sorts chronologically with `ls`, and
+reads at a glance.
 
-Predictions (`outputs/predictions_<run_id>.json`) and metrics
-(`metrics/metrics_<run_id>.json` + `metrics/metrics_<run_id>.md`) share the
-same `run_id` so a single evaluation always traces back to the exact
-detector output it scored.
+## IoU matching rule
 
-`run_id` format: `<YYYY-MM-DD>_<HHMM>_<short-tag>` (e.g.
-`2026-04-28_1430_sprinkler-baseline`). Sorts chronologically with `ls`,
-short-tag describes the experiment.
+For each `(image_id, category_id)` group:
 
-## Matching rules (IoU >= 0.5)
+1. Sort predictions by `score` descending.
+2. For each prediction, compute IoU against every still-unmatched GT in
+   that group. Pick the GT with the highest IoU.
+3. If `best_iou >= iou_threshold`, mark the GT matched, count the
+   prediction as TP, store the IoU value. Otherwise count as FP.
+4. After all predictions are walked, every GT still unmatched is FN.
 
-For each (image_id, category_id) group:
+Each GT is consumed by at most one prediction; higher-confidence
+predictions claim first.
 
-1. Sort predictions in that group by `score` descending.
-2. Walk predictions in order. For each prediction:
-   - Compute IoU against every still-unmatched GT box of the same
-     `category_id` in the same `image_id`.
-   - If the best IoU >= 0.5, mark that GT box matched, count the
-     prediction as TP, store the IoU value.
-   - Otherwise, count the prediction as FP.
-3. Any GT box still unmatched at the end is a FN.
-
-Each GT box can be matched at most once. Higher-confidence predictions
-get first claim — lower-score predictions on the same GT become FPs.
-
-IoU formula: intersection_area / union_area. Convert COCO `[x, y, w, h]`
+IoU formula: `intersection_area / union_area`. Convert COCO `[x, y, w, h]`
 to corners with `x2 = x + w`, `y2 = y + h`.
+
+**Picking `iou_threshold`.** The conventional value is 0.5. Use a lower
+value (e.g. 0.25) when the GT bboxes were annotated with surrounding
+padding included while the detector outputs tight symbol boxes — at 0.5
+correct localisations are scored as FP+FN pairs purely from padding
+mismatch. Sanity check: if `iou_threshold = X` and `iou_threshold = X/2`
+yield identical metrics, predictions are either matching cleanly or are
+at totally different locations and the chosen threshold is unambiguous.
+The active threshold is always recorded in
+`metrics_<run_id>.json["iou_threshold"]`.
 
 ## Metrics (always report all of them)
 
-For each class c (iterate over every category in the COCO file, even
-if some have zero predictions or zero GT — report them as zeros):
+For each class declared in the COCO file — including zero-instance ones,
+which report all zeros:
 
-- precision_c = TP_c / (TP_c + FP_c)        (0 if denom is 0)
-- recall_c    = TP_c / (TP_c + FN_c)        (0 if denom is 0)
-- f1_c        = 2 * P * R / (P + R)         (0 if P + R is 0)
+- `precision_c = TP_c / (TP_c + FP_c)`
+- `recall_c    = TP_c / (TP_c + FN_c)`
+- `f1_c        = 2 * P * R / (P + R)`
 
-**Macro-averaged**: simple mean of the per-class metrics over ALL
-declared categories. Treats every class equally regardless of instance
-count. Surfaces a class the detector is silently failing on.
+Use 0 when the denominator is 0.
 
-**Micro-averaged**: pool TP, FP, FN across all classes first, then
-compute precision and recall once on the totals. Dominated by classes
-with more instances. Use this as the headline number.
+**Macro-averaged**: simple mean of the per-class precision/recall/F1 over
+*all* declared categories. Treats every class equally regardless of
+instance count and surfaces a class the detector is silently failing on.
 
-When phase 1 has one class, macro and micro will be identical — that
-is correct, not a bug. They diverge as soon as a second class is added.
+**Micro-averaged**: pool TP/FP/FN across all classes first, then compute
+precision and recall once on the totals. Dominated by classes with more
+instances. Headline number.
+
+With a single class, macro and micro are identical by construction.
 
 Also report:
-- Mean IoU of true positives (overall, not per class)
-- Per-class TP / FP / FN counts
-- Miss list: each FN with `image_id`, `gt_id`, `category_id`, and the
-  GT `bbox`. The list is mechanical — no cause attribution. See
-  "Miss analysis (separate, interpretive)" below.
-- Latency per page, measured wall-clock around the full detector call for
-  each page (load/preprocess, feature matching, candidate union, and NMS).
-  Report average, median, P95, max, and per-page values. For this CPU-only
-  OpenCV PoC, the target is **MAX latency <= 10 seconds/page**. A 5-10
-  seconds/page exploratory range is reasonable, but <=10s MAX is the PoC
-  bar.
+- Mean IoU of true positives (overall).
+- Per-class TP/FP/FN counts.
+- Miss list — each FN with `image_id`, `gt_id`, `category_id`, and the GT
+  `bbox`. Mechanical only — no cause attribution in the metrics file
+  (see "Miss analysis" below).
+- Latency per page, measured wall-clock around the full detector call
+  (preprocessing + matching + filters + NMS). Report avg / median / P95 /
+  max plus per-page values.
 
-## Output format (stdout + disk)
+## Output format
 
-### 1. Print to stdout (this exact structure)
+### Stdout
 
 ```
 | Class       | TP | FP | FN | Precision | Recall | F1  | Mean IoU |
 |-------------|----|----|----|-----------|--------|-----|----------|
-| sprinkler   | .. | .. | .. |    ..     |   ..   | ..  |    ..    |
+| <class_a>   | .. | .. | .. |    ..     |   ..   | ..  |    ..    |
 | **macro**   | —  | —  | —  |    ..     |   ..   | ..  |    —     |
 | **micro**   | .. | .. | .. |    ..     |   ..   | ..  |    ..    |
 ```
 
-Followed by:
-- Overall mean IoU (true positives only).
-- Latency summary: average, median, P95, max, and whether MAX meets the
-  `<=10s/page` PoC target.
-- Miss list with `image_id`, `gt_id`, `category_id`, and `bbox`. No cause
-  attribution in the metrics output.
+Class rows are generated dynamically from `coco.loadCats(getCatIds())`.
+Followed by overall mean IoU, latency summary, and miss list.
 
-The class rows are generated dynamically from the COCO `categories`
-list. Never hardcode class names in the table.
+### Disk
 
-### 2. Persist to disk (always, even on bad runs)
+Always write both files, even on failed runs (a bad run is data too —
+the failure pattern informs the next iteration):
 
-Create `metrics/` at the repo root if it does not exist. Write two
-files per run, both keyed by the same `run_id` as the predictions:
-
-- `metrics/metrics_<run_id>.json` — structured, machine-readable.
-  Schema:
+- `metrics/metrics_<run_id>.json`:
 
   ```json
   {
-    "run_id": "2026-04-28_1430_sprinkler-baseline",
-    "iou_threshold": 0.5,
+    "run_id": "2026-04-30_1456_baseline",
+    "iou_threshold": 0.25,
     "ground_truth": "dataset/annotations/annotations.json",
     "predictions": "outputs/predictions_<run_id>.json",
     "latency": {
@@ -197,66 +185,64 @@ files per run, both keyed by the same `run_id` as the predictions:
   }
   ```
 
-- `metrics/metrics_<run_id>.md` — the same markdown table printed to
-  stdout, plus the overall mean IoU, latency summary, and miss list.
-  Human-readable artifact for PRs and the code-reviewer pass.
+- `metrics/metrics_<run_id>.md` — same content as the stdout block plus
+  the per-page latency table and the miss list. Human-readable artifact
+  for PRs and the code-reviewer pass.
 
 Rules:
-- Never overwrite an existing `run_id`. If it exists, fail loudly — the
-  user picks a new tag.
-- `per_class` enumerates **every** category from the COCO file, even
-  zero-instance ones. Same rule as the metric loop.
+- Never overwrite an existing `run_id`. Fail loudly; the user picks a
+  new tag.
+- `per_class` enumerates every category in the COCO file — including
+  zero-instance classes — same rule as the metric loop.
 - Commit `metrics/` to the repo. Files are tiny and the run history is
   the narrative of the PoC.
 
 ## Miss analysis (separate, interpretive)
 
-Attributing a cause to each FN (rotation, occlusion, scale, color
-shift, novel format) is a **judgement call** made by inspecting the
-GT crop against the references. It is not a metric and it does NOT
-belong in `metrics_<run_id>.json` or `metrics_<run_id>.md`, both of
-which must stay reproducible from the predictions alone — same input,
-same output, byte-for-byte.
+Attributing a cause to each FN (rotation, occlusion, scale, color shift,
+novel format) is a judgement call made by inspecting GT crops against
+references. It is not a metric, must not appear in
+`metrics_<run_id>.{json,md}` (which must reproduce byte-for-byte from
+the same predictions), and belongs in a separate artifact
+`metrics/analysis_<run_id>.md`. Header that file with a line such as
+*"Subjective miss analysis. Two observers may disagree; the metrics file
+does not change."*
 
-When the user asks for a miss analysis, write it as a separate
-artifact `metrics/analysis_<run_id>.md`, clearly labeled as
-interpretive (e.g. a header line: *"Subjective miss analysis. Two
-observers may disagree; the metrics file does not change."*).
-
-The interpretive layer can also live inline in chat instead of a file
-when the analysis is throwaway. The metrics file is the contract; the
-analysis is commentary.
+Throw-away analysis can stay inline in chat. The metrics file is the
+contract; the analysis is commentary.
 
 ## Decision rule
 
-If micro precision < 0.7 OR micro recall < 0.8, do NOT silently retune
-parameters. Still write `metrics/metrics_<run_id>.json` and `.md` —
-a bad run is data too, and the failure pattern (which class, which
-counts) is exactly what informs the next iteration. Report the accuracy
-miss and propose at most 2 concrete changes (e.g. "tighten NMS to 0.4",
-"add 15-degree rotation step"). The user decides.
+Set explicit precision, recall, and latency targets at the start of the
+PoC and record them in the run's params. Default targets:
 
-If MAX latency > 10 seconds/page, also treat the run as missing the PoC
-target. Do NOT silently optimize or change detector parameters. Report
-the latency miss and propose at most 2 concrete changes. The user decides.
+- `micro precision >= 0.8`
+- `micro recall >= 0.8`
+- `max latency per page <= 10 s` (CPU-only PoC)
 
-If accuracy and latency both miss their targets, propose at most 2 total
-changes, not 2 per metric. Prioritize changes that improve recall without
-exploding latency.
+After each run, compare to the targets:
+
+- If a metric misses, do NOT silently retune. Still write
+  `metrics/metrics_<run_id>.{json,md}`. Surface the miss and propose
+  **at most 2 concrete changes** (e.g. "tighten NMS to 0.4", "add a 15°
+  rotation step"). The user decides which to apply.
+- If accuracy and latency both miss, propose 2 total changes (not 2 per
+  metric). Prioritise changes that move the larger gap without exploding
+  the other axis.
 
 ## Multi-reference handling
 
-When a feature class has multiple reference images (e.g. sprinkler =
-water-flow switch + valve supervisory), the detector runs once per
-reference and the candidate boxes are unioned BEFORE NMS, then NMS is
-applied globally for that class. For metrics, treat them as a single
-class — the GT does not distinguish sub-formats; they all share one
-`category_id`.
+When a class has multiple reference images representing different visual
+formats (e.g. solid disk + ring + asterisk for a "sprinkler" class), the
+detector runs once per reference and the candidate boxes are unioned
+*before* NMS; NMS is then applied globally per class. For metrics, the
+references collapse to a single category — the GT does not distinguish
+sub-formats; they all share one `category_id`.
 
 ## Tooling
 
 Prefer `pycocotools` for IoU and matching when available — it is the
-reference implementation and avoids subtle bugs. If it is not in
-requirements.txt yet, add it (`pycocotools`) with a pinned version and
-install before evaluating. Hand-rolled IoU is fine for the notebook's
-exploratory cells but not for the final metric report.
+reference implementation and avoids subtle bugs. Pin it in
+`requirements.txt` if missing. Hand-rolled IoU is acceptable for
+exploratory notebook cells but the final metric report uses
+`pycocotools`.

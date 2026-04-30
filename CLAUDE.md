@@ -66,6 +66,14 @@ Conventions:
     `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
 - After activation, always invoke tools via the venv (`python`, `pip`, `uvicorn`,
   `pytest`, `ruff`, `black`) — never the system Python.
+- **Jupyter kernel**: the notebook (`notebook/poc_detector.ipynb`) declares
+  kernel name `poc-venv`. After activating the venv, register it once per
+  machine:
+  - Windows / Linux / macOS:
+    `python -m ipykernel install --user --name poc-venv --display-name "Python 3 (.venv poc)"`
+  This is a one-time per-machine setup; the kernel persists across reboots.
+  Without it, opening the notebook or running it via `jupyter nbconvert` will
+  fail with "kernel 'poc-venv' not found".
 - New dependency? Append it to `requirements.txt` with a pinned version
   AND install it. Never `pip install` without updating the file.
 - Use forward slashes in repo paths (`dataset/images/...`). They work on all

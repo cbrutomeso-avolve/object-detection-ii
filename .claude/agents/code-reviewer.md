@@ -9,7 +9,7 @@ description: Performs a local quality code review on the changes of
   quality check the user runs locally. Example: "Spawn the code-reviewer
   on the current branch."
 tools: Read, Grep, Glob, Bash
-model: opus
+model: sonnet
 color: red
 ---
 

@@ -135,52 +135,6 @@ def _ref_mean_sat(ref_bgr: np.ndarray) -> float:
     return float(cv2.cvtColor(ref_bgr, cv2.COLOR_BGR2HSV)[..., 1].mean())
 
 
-def _drop_low_distinctness_refs(refs: list[np.ndarray], min_dark_per_channel: int) -> list[np.ndarray]:
-    """Drop refs whose trimmed mean BGR is above the threshold in every channel
-    (mostly white = matches anything = low signal). Returns at least one ref to
-    avoid an empty list."""
-    kept = []
-    for r in refs:
-        trimmed = trim_near_white_border(r)
-        if trimmed.ndim != 3:
-            kept.append(r)
-            continue
-        m = trimmed.mean(axis=(0, 1))
-        if not all(c >= min_dark_per_channel for c in m):
-            kept.append(r)
-    return kept if kept else refs[:1]
-
-
-def remove_long_lines(
-    page_bgr: np.ndarray,
-    *,
-    min_length_px: int = 80,
-    dark_thresh: int = 100,
-    inpaint_radius: int = 3,
-) -> np.ndarray:
-    """Detect long horizontal and vertical dark lines (dimension marks, pipes,
-    table borders) and inpaint them out of the page.
-
-    Sprinkler symbols (max ~57 px in this dataset) are shorter than
-    `min_length_px=80` so the morphological opening with line kernels never
-    catches them — only true dimension/pipe lines are extracted. Without this
-    step, lines crossing a sprinkler perturb the patch and drop
-    `cv2.matchTemplate(TM_CCOEFF_NORMED)` scores from ~0.85 to ~0.3, well
-    below tau, causing systematic false negatives in light-region zones of
-    architectural plans.
-    """
-    gray = cv2.cvtColor(page_bgr, cv2.COLOR_BGR2GRAY) if page_bgr.ndim == 3 else page_bgr
-    _, dark = cv2.threshold(gray, dark_thresh, 255, cv2.THRESH_BINARY_INV)
-    h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (min_length_px, 1))
-    v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, min_length_px))
-    h_lines = cv2.morphologyEx(dark, cv2.MORPH_OPEN, h_kernel)
-    v_lines = cv2.morphologyEx(dark, cv2.MORPH_OPEN, v_kernel)
-    line_mask = cv2.dilate(cv2.bitwise_or(h_lines, v_lines), np.ones((3, 3), np.uint8))
-    if line_mask.sum() == 0:
-        return page_bgr
-    return cv2.inpaint(page_bgr, line_mask, inpaint_radius, cv2.INPAINT_TELEA)
-
-
 def compute_drawing_roi(
     page_bgr: np.ndarray,
     *,
@@ -207,7 +161,6 @@ def compute_drawing_roi(
     n, labels, stats, _ = cv2.connectedComponentsWithStats(dilated, connectivity=8)
     if n <= 1:
         return np.full(gray.shape, 255, np.uint8)
-    page_area = gray.shape[0] * gray.shape[1]
     sizes = stats[1:, cv2.CC_STAT_AREA]
     biggest = int(np.argmax(sizes)) + 1
     mask = (labels == biggest).astype(np.uint8) * 255
@@ -235,66 +188,23 @@ def _candidate_in_mask(mask: np.ndarray, cand: Candidate) -> bool:
     return False
 
 
-def find_best_scale_ratio(
-    page_gray: np.ndarray,
-    ref_gray: np.ndarray,
-    candidate_ratios: Sequence[float],
-    tau: float,
-    top_k: int = 10,
-) -> float:
-    """Coarse-scan per-(page, ref) to pick the scale ratio that produces the
-    strongest top-K peaks. The detector then runs a fine sweep around the
-    winning ratio. This adapts the template scale to each page's actual
-    symbol size without hardcoded per-page tuning."""
-    ref_long = max(ref_gray.shape)
-    best_ratio = candidate_ratios[len(candidate_ratios) // 2]
-    best_metric = -1.0
-    for ratio in candidate_ratios:
-        size = int(round(ref_long * ratio))
-        if size < 4:
-            continue
-        tpl = _resize_to_target(ref_gray, size)
-        if tpl.shape[0] < 3 or tpl.shape[1] < 3:
-            continue
-        if tpl.shape[0] >= page_gray.shape[0] or tpl.shape[1] >= page_gray.shape[1]:
-            continue
-        scores = cv2.matchTemplate(page_gray, tpl, cv2.TM_CCOEFF_NORMED)
-        kernel = np.ones((max(3, tpl.shape[0]), max(3, tpl.shape[1])), np.uint8)
-        local_max = cv2.dilate(scores, kernel)
-        peaks = (scores >= local_max - 1e-6) & (scores >= tau)
-        peak_scores = scores[peaks]
-        if peak_scores.size < 3:
-            continue
-        k = min(top_k, peak_scores.size)
-        top = np.partition(peak_scores, -k)[-k:]
-        metric = float(top.sum())
-        if metric > best_metric:
-            best_metric = metric
-            best_ratio = ratio
-    return best_ratio
-
-
 def detect(
     page_bgr: np.ndarray,
     references_bgr: list[np.ndarray],
     *,
-    target_sizes_px: Sequence[int] | None = None,
-    target_size_coarse_ratios: Sequence[float] | None = None,
-    target_size_fine_steps: Sequence[float] = (0.85, 0.93, 1.0, 1.08, 1.17),
+    target_sizes_px: Sequence[int],
     tau: float,
     iou_nms: float,
     rotations_deg: Sequence[float] = (0.0,),
     color_max_distance: float | None = None,
     sat_max_distance: float | None = None,
-    drop_light_refs_thresh: int | None = None,
     use_roi_mask: bool = False,
     roi_mask: np.ndarray | None = None,
     outlier_count_factor: float | None = None,
     outlier_count_min_threshold: int = 20,
-    remove_long_lines_min_length: int | None = None,
     downsample_size_threshold_px: int | None = None,
 ) -> list[Candidate]:
-    """Grayscale matchTemplate at one or more target sizes, multi-reference
+    """Grayscale matchTemplate at a dense list of target sizes, multi-reference
     union, greedy NMS.
 
     `target_sizes_px` lists the absolute longest-side template sizes to try.
@@ -312,9 +222,6 @@ def detect(
     from the reference's mean saturation by more than this. Catches text
     matches against colored refs (text is low-sat, blue ref is high-sat).
 
-    `drop_light_refs_thresh` drops refs whose trimmed mean BGR is at or
-    above this in every channel (e.g. 220 = mostly white, low signal).
-
     `downsample_size_threshold_px` enables a hybrid full-res / 2x-downsampled
     matching strategy that keeps per-page latency stable as more refs are
     added. Templates with `size <= threshold` run on the full-resolution
@@ -324,13 +231,7 @@ def detect(
     back to full-res. Recommended threshold = 17. `None` (default) keeps
     everything full-res.
     """
-    if (target_sizes_px is None) == (target_size_coarse_ratios is None):
-        raise ValueError("specify exactly one of target_sizes_px or target_size_coarse_ratios")
-    if remove_long_lines_min_length is not None:
-        page_bgr = remove_long_lines(page_bgr, min_length_px=remove_long_lines_min_length)
     refs = list(references_bgr)
-    if drop_light_refs_thresh is not None:
-        refs = _drop_low_distinctness_refs(refs, drop_light_refs_thresh)
 
     page_gray = cv2.cvtColor(page_bgr, cv2.COLOR_BGR2GRAY) if page_bgr.ndim == 3 else page_bgr
     page_hsv = cv2.cvtColor(page_bgr, cv2.COLOR_BGR2HSV) if (page_bgr.ndim == 3 and sat_max_distance is not None) else None
@@ -345,12 +246,7 @@ def detect(
         ref_gray = cv2.cvtColor(trimmed, cv2.COLOR_BGR2GRAY) if trimmed.ndim == 3 else trimmed
         ref_color = trimmed.mean(axis=(0, 1)) if (trimmed.ndim == 3 and color_max_distance is not None) else None
         ref_sat = _ref_mean_sat(trimmed) if (sat_max_distance is not None) else None
-        if target_size_coarse_ratios is not None:
-            ref_long = max(ref_gray.shape)
-            best_ratio = find_best_scale_ratio(page_gray, ref_gray, target_size_coarse_ratios, tau=tau)
-            sizes_for_ref = [max(8, int(round(ref_long * best_ratio * f))) for f in target_size_fine_steps]
-        else:
-            sizes_for_ref = list(target_sizes_px)
+        sizes_for_ref = list(target_sizes_px)
         for size in sizes_for_ref:
             use_downsampled = (
                 downsample_size_threshold_px is not None

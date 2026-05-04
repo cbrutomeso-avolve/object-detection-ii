@@ -1,0 +1,33 @@
+{
+  "image_id": 7,
+  "file_name": "068_FP22_ENLARGED_FIRE_SPRINKLER_PLANS_page_001.png",
+  "image_width": 3072,
+  "image_height": 2194,
+  "roi": {
+    "type": "rectangle",
+    "bbox_xywh": [
+      1200,
+      1615,
+      1218,
+      439
+    ],
+    "polygon": [
+      [
+        1200,
+        1615
+      ],
+      [
+        2418,
+        1615
+      ],
+      [
+        2418,
+        2054
+      ],
+      [
+        1200,
+        2054
+      ]
+    ]
+  }
+}

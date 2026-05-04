@@ -1,0 +1,33 @@
+{
+  "image_id": 4,
+  "file_name": "001_Sprinkler_demo_plan_page_001.png",
+  "image_width": 3072,
+  "image_height": 2048,
+  "roi": {
+    "type": "rectangle",
+    "bbox_xywh": [
+      926,
+      369,
+      900,
+      1035
+    ],
+    "polygon": [
+      [
+        926,
+        369
+      ],
+      [
+        1826,
+        369
+      ],
+      [
+        1826,
+        1404
+      ],
+      [
+        926,
+        1404
+      ]
+    ]
+  }
+}

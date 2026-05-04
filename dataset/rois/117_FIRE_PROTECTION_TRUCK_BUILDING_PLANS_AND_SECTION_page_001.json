@@ -1,0 +1,33 @@
+{
+  "image_id": 8,
+  "file_name": "117_FIRE_PROTECTION_TRUCK_BUILDING_PLANS_AND_SECTION_page_001.png",
+  "image_width": 3072,
+  "image_height": 2048,
+  "roi": {
+    "type": "rectangle",
+    "bbox_xywh": [
+      1705,
+      581,
+      994,
+      727
+    ],
+    "polygon": [
+      [
+        1705,
+        581
+      ],
+      [
+        2699,
+        581
+      ],
+      [
+        2699,
+        1308
+      ],
+      [
+        1705,
+        1308
+      ]
+    ]
+  }
+}

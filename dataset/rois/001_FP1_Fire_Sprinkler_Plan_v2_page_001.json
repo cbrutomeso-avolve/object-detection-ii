@@ -1,0 +1,33 @@
+{
+  "image_id": 9,
+  "file_name": "001_FP1_Fire_Sprinkler_Plan_v2_page_001.png",
+  "image_width": 3072,
+  "image_height": 2048,
+  "roi": {
+    "type": "rectangle",
+    "bbox_xywh": [
+      443,
+      1233,
+      1984,
+      634
+    ],
+    "polygon": [
+      [
+        443,
+        1233
+      ],
+      [
+        2427,
+        1233
+      ],
+      [
+        2427,
+        1867
+      ],
+      [
+        443,
+        1867
+      ]
+    ]
+  }
+}

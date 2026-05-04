@@ -1,0 +1,33 @@
+{
+  "image_id": 3,
+  "file_name": "001_Kay_Jewelers_-_fire_sprinkler_plan_page_001.png",
+  "image_width": 3072,
+  "image_height": 2048,
+  "roi": {
+    "type": "rectangle",
+    "bbox_xywh": [
+      180,
+      241,
+      1323,
+      812
+    ],
+    "polygon": [
+      [
+        180,
+        241
+      ],
+      [
+        1503,
+        241
+      ],
+      [
+        1503,
+        1053
+      ],
+      [
+        180,
+        1053
+      ]
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "image_id": 6,
+  "file_name": "006_The_VIC_Elevator_Fire_Sprinkler_Plan_As-Builts_page_001.png",
+  "image_width": 3072,
+  "image_height": 2048,
+  "roi": {
+    "type": "rectangle",
+    "bbox_xywh": [
+      195,
+      70,
+      2677,
+      926
+    ],
+    "polygon": [
+      [
+        195,
+        70
+      ],
+      [
+        2872,
+        70
+      ],
+      [
+        2872,
+        996
+      ],
+      [
+        195,
+        996
+      ]
+    ]
+  }
+}

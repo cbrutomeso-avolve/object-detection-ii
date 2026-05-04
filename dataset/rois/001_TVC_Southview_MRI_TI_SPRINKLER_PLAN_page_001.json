@@ -1,0 +1,33 @@
+{
+  "image_id": 5,
+  "file_name": "001_TVC_Southview_MRI_TI_SPRINKLER_PLAN_page_001.png",
+  "image_width": 3072,
+  "image_height": 2304,
+  "roi": {
+    "type": "rectangle",
+    "bbox_xywh": [
+      138,
+      105,
+      996,
+      902
+    ],
+    "polygon": [
+      [
+        138,
+        105
+      ],
+      [
+        1134,
+        105
+      ],
+      [
+        1134,
+        1007
+      ],
+      [
+        138,
+        1007
+      ]
+    ]
+  }
+}

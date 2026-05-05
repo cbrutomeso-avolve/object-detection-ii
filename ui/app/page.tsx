@@ -40,6 +40,13 @@ export default function Home() {
       .finally(() => setCategoriesLoading(false));
   }, []);
 
+  // Revoke the plan object URL when it changes or the component unmounts
+  useEffect(() => {
+    return () => {
+      if (planObjectURL) URL.revokeObjectURL(planObjectURL);
+    };
+  }, [planObjectURL]);
+
   function handleFileSelected(file: File, url: string) {
     setPlanFile(file);
     setPlanObjectURL(url);

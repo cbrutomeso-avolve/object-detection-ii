@@ -114,14 +114,15 @@ export function useCanvasInteraction({
     const resizeObserver = new ResizeObserver(syncCanvasSize);
     resizeObserver.observe(image);
 
+    // mousemove and mouseup are on window so drags that exit the canvas still complete
     canvas.addEventListener("mousedown", onMouseDown);
-    canvas.addEventListener("mousemove", onMouseMove);
-    canvas.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
 
     return () => {
       canvas.removeEventListener("mousedown", onMouseDown);
-      canvas.removeEventListener("mousemove", onMouseMove);
-      canvas.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
       resizeObserver.disconnect();
     };
   }, [canvasRef, imageRef, onCropComplete, onRoiComplete]);

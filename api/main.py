@@ -6,13 +6,29 @@ from typing import Annotated
 import cv2
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "notebook"))
 from detector import Candidate, detect  # noqa: E402
 
-from api.schemas import DetectResponse, Detection
+from api.schemas import Category, DetectResponse, Detection
 
 app = FastAPI(title="Object Detection API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+_ANNOTATIONS_PATH = Path(__file__).parent.parent / "dataset" / "annotations" / "annotations.json"
+
+
+@app.get("/categories", response_model=list[Category])
+def categories_endpoint() -> list[Category]:
+    data = json.loads(_ANNOTATIONS_PATH.read_text())
+    return [Category(id=c["id"], name=c["name"]) for c in data["categories"]]
 
 # Params mirror the notebook's final tuned values (see notebook/poc_detector.ipynb).
 # Two sets because ROI runs benefit from lower tau / tighter NMS.
